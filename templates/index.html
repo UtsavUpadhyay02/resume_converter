@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ResumeFlow AI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">⚡ ResumeFlow AI</div>
+      <p class="tagline">Upload a resume — get it reformatted for any company in seconds.</p>
+    </header>
+
+    <div class="steps-bar">
+      <div class="step active" id="s1"><span class="step-num">1</span> Upload Resume</div>
+      <div class="step-line"></div>
+      <div class="step" id="s2"><span class="step-num">2</span> Choose Format</div>
+      <div class="step-line"></div>
+      <div class="step" id="s3"><span class="step-num">3</span> Download</div>
+    </div>
+
+    <div class="card" id="upload-card">
+      <h2 class="card-title">📄 Candidate Resume (PDF / DOCX)</h2>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('resumeInput').click()">
+        <div class="drop-icon">☁️</div>
+        <p id="dropLabel">Drop PDF or DOCX here or <span class="link">click to browse</span></p>
+        <small>PDF / DOCX · max 10MB</small>
+      </div>
+      <input type="file" id="resumeInput" accept=".pdf,.docx" />
+    </div>
+
+    <div class="card disabled" id="format-card">
+      <h2 class="card-title">🏢 Target Company Format</h2>
+
+      <div class="chips" id="chips">
+        {% for preset in presets %}
+        <button class="chip {% if loop.first %}active{% endif %}" data-value="{{ preset }}">
+          {{ preset|capitalize }}
+        </button>
+        {% endfor %}
+        <button class="chip" data-value="custom">Custom ✦</button>
+        <button class="chip" data-value="template">Upload Template ⬆</button>
+      </div>
+
+      <textarea id="formatText" placeholder="Describe the company's resume format in detail..."></textarea>
+
+      <div class="template-upload-zone" id="templateUploadZone" style="display:none;">
+        <div class="drop-zone" id="templateDropZone" onclick="document.getElementById('templateInput').click()">
+          <div class="drop-icon">📎</div>
+          <p id="templateDropLabel">Drop a sample company resume (DOCX) here or <span class="link">click to
+              browse</span></p>
+          <small>DOCX only · used as a style/structure reference, content is ignored</small>
+        </div>
+        <input type="file" id="templateInput" accept=".docx" />
+      </div>
+
+      <div class="preset-presets" id="presetDescriptions">
+        <p id="presetHint" class="hint">✓ Using preset format for selected company.</p>
+      </div>
+
+      <button class="btn-primary" id="convertBtn" onclick="startConversion()" disabled>
+        ⚡ Convert Resume
+      </button>
+    </div>
+
+    <div class="card" id="result-card" style="display:none;">
+      <div id="loadingState" class="loading-state">
+        <div class="spinner"></div>
+        <p id="loadingMsg">Reading resume...</p>
+      </div>
+      <div id="previewArea" style="display:none;">
+        <div class="preview-header" style="text-align:center; padding: 4px 0 14px;">
+          <span id="previewName" class="preview-name"
+            style="display:block; font-size:24px; font-weight:700; letter-spacing:0.3px; margin-bottom:8px;"></span>
+          <span id="statusBadge" class="badge success">Ready</span>
+        </div>
+        <div id="previewBody" class="preview-body"></div>
+        <div class="actions">
+          <button class="btn-primary" id="downloadBtn" onclick="downloadFile()">
+            ⬇ Download DOCX
+          </button>
+          <button class="btn-secondary" onclick="resetApp()">↩ Convert Another</button>
+        </div>
+      </div>
+      <div id="errorState" style="display:none;" class="error-box"></div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
