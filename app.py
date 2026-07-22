@@ -20,10 +20,10 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "sk-or-v1-6a5d3a8cf960
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_CANDIDATES = [
     "openrouter/free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "openai/gpt-oss-20b:free",
+    
+    
     "openai/gpt-oss-120b:free",
-    "nvidia/nemotron-3-nano-9b-v2:free",
+    
 ]
 
 COMPANY_PRESETS = {
