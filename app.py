@@ -20,11 +20,37 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "sk-or-v1-6a5d3a8cf960
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_CANDIDATES = [
     "openrouter/free",
-    
-    
-    "openai/gpt-oss-120b:free",
-    
 ]
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+
+
+def call_gemini(system_prompt, user_prompt):
+    """Fallback call to Gemini when all OpenRouter models fail."""
+    if not GEMINI_API_KEY:
+        raise Exception("Gemini fallback skipped: GEMINI_API_KEY not set.")
+
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 3000}
+    }
+    print(f"[call_gemini] Calling: {GEMINI_URL}?key={GEMINI_API_KEY[:10]}...")
+    response = requests.post(
+        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+        headers=headers, json=payload, timeout=60
+    )
+    response.raise_for_status()
+    content = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    content = content.strip()
+    content = re.sub(r"^```json\s*", "", content)
+    content = re.sub(r"\s*```$", "", content)
+    content = re.sub(r",\s*}", "}", content)
+    content = re.sub(r",\s*]", "]", content)
+    print("[call_gemini] Succeeded using Gemini fallback")
+    return json.loads(content)
+
 
 COMPANY_PRESETS = {
     "google": "Google-style resume: clean single page, ATS-friendly, no photo. Sections: Summary (2 lines), Skills (grouped by category), Experience (reverse chronological, 3-4 bullet points per role using STAR format with metrics), Education, Projects.",
@@ -197,6 +223,14 @@ Return ONLY valid JSON. No explanation, no markdown."""
         except json.JSONDecodeError:
             continue
 
+    # Try Gemini before falling back to default structure
+    try:
+        result = call_gemini(system_prompt, user_prompt)
+        print(f"[analyze_template] Succeeded via Gemini: {json.dumps(result, indent=2)}")
+        return result
+    except Exception as e:
+        print(f"[analyze_template] Gemini fallback also failed: {e}")
+
     # fallback: return default structure if analysis fails
     print("[analyze_template] Failed, using default structure")
     return {
@@ -292,7 +326,12 @@ Return ONLY valid JSON. No explanation, no markdown, no code blocks."""
             last_error = Exception(f"AI returned invalid JSON: {e}")
             continue
 
-    raise last_error if last_error else Exception("All AI model candidates failed.")
+    # All OpenRouter models failed — try Gemini as last resort
+    try:
+        return call_gemini(system_prompt, user_prompt)
+    except Exception as gemini_error:
+        print(f"[call_ai] Gemini fallback also failed: {gemini_error}")
+        raise last_error if last_error else gemini_error
 
 
 def build_docx(data, company_name, template_style=None):
