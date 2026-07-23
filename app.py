@@ -8,6 +8,7 @@ from docx import Document
 from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import re
+from google import genai  # NEW: official SDK, handles new AQ. key format correctly
 
 
 app = Flask(__name__)
@@ -16,34 +17,36 @@ app.config['OUTPUT_FOLDER'] = 'outputs'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max
 
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "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")
+# SECURITY FIX: removed hardcoded fallback key. This key was leaking into the
+# source code itself (not just .env). Rotate this key on OpenRouter's
+# dashboard since it has been exposed.
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_CANDIDATES = [
     "openrouter/free",
 ]
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# NEW: create the genai client once at import time. This SDK handles both the
+# old AIza (Standard) and new AQ. (Auth) key formats correctly — the raw
+# requests.post(...) approach broke on the new key format with a 404/401.
+_gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 
 def call_gemini(system_prompt, user_prompt):
     """Fallback call to Gemini when all OpenRouter models fail."""
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY or _gemini_client is None:
         raise Exception("Gemini fallback skipped: GEMINI_API_KEY not set.")
 
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 3000}
-    }
-    print(f"[call_gemini] Calling: {GEMINI_URL}?key={GEMINI_API_KEY[:10]}...")
-    response = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        headers=headers, json=payload, timeout=60
+    print(f"[call_gemini] Calling Gemini model: {GEMINI_MODEL}")
+    response = _gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=f"{system_prompt}\n\n{user_prompt}",
+        config={"temperature": 0.3, "max_output_tokens": 3000},
     )
-    response.raise_for_status()
-    content = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    content = content.strip()
+    content = (response.text or "").strip()
     content = re.sub(r"^```json\s*", "", content)
     content = re.sub(r"\s*```$", "", content)
     content = re.sub(r",\s*}", "}", content)
